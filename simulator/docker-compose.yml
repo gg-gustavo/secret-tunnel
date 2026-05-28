@@ -1,0 +1,23 @@
+services:
+  p4studio:
+    # Ubuntu image with Open P4 Studio installed
+    image: voodala/p4studio:0.1
+
+    container_name: p4studio
+    hostname: p4studio
+
+    privileged: true
+
+    ports:
+      - 2222:22
+
+    networks:
+      - p4net
+
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ../.:/home/dev/project
+
+networks:
+  p4net:
+    name: p4net
