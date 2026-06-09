@@ -1,5 +1,5 @@
 #ifndef _HEADERS_
-    #define _HEADERS_
+#define _HEADERS_
 
 #include <core.p4>
 #include <v1model.p4>
@@ -15,18 +15,24 @@
 typedef bit<48> mac_addr_t;
 typedef bit<16> ether_type_t;
 
+/* 1. Primeiro definimos os moldes dos cabeçalhos */
 header ethernet_h {
     mac_addr_t dst_addr;
     mac_addr_t src_addr;
     bit<16> ether_type;
 }
 
-
-struct header_t {
-    ethernet_h ethernet;
+header secret_h {
+    bit<128> token;
 }
 
-// Variáveis metadados auxiliares, caso ache necessário utilizá-las
+/* 2. Instanciamos os moldes já conhecidos dentro da struct global */
+struct header_t {
+    ethernet_h ethernet;
+    secret_h   secret;
+}
+
+/* 3. Estrutura de metadados auxiliares */
 struct metadata_t {
     bit<32> aux1;
     bit<32> aux2;

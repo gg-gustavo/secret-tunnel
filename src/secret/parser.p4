@@ -59,7 +59,18 @@ parser SwitchIngressParser(packet_in pkt,
     state parse_ethernet {
         meta = {0, 0, 0, 0, 0};
         pkt.extract(hdr.ethernet);
-        /* DICA: utilizar transition select */
+        
+        /* NOSSO CÓDIGO: Transição condicional baseada no EtherType */
+        transition select(hdr.ethernet.ether_type) {
+            0x9000: parse_secret;
+            0x9001: parse_secret;
+            default: accept;
+        }
+    }
+
+    /* Estado criado para extrair os 16 bytes do token */
+    state parse_secret {
+        pkt.extract(hdr.secret);
         transition accept;
     }
 }
@@ -75,7 +86,7 @@ control SwitchIngressDeparser(packet_out pkt,
     in ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md)
 {
     apply {
-        pkt.emit(hdr);
+        pkt.emit(hdr); // Remonta o pacote para a saída
     }
 }
 
@@ -101,6 +112,17 @@ parser SwitchEgressParser(packet_in pkt,
     state parse_ethernet {
         meta = {0, 0, 0, 0, 0};
         pkt.extract(hdr.ethernet);
+        
+        /* Espelhamos a lógica do Ingress para evitar falhas no pipeline de saída */
+        transition select(hdr.ethernet.ether_type) {
+            0x9000: parse_secret;
+            0x9001: parse_secret;
+            default: accept;
+        }
+    }
+
+    state parse_secret {
+        pkt.extract(hdr.secret);
         transition accept;
     }
 }
@@ -119,6 +141,5 @@ control SwitchEgressDeparser(packet_out pkt,
         pkt.emit(hdr);
     }
 }
-
 
 #endif /* _PARSER_ */

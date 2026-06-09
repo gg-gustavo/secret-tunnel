@@ -10,9 +10,7 @@
 #include "headers.p4"
 #include "parser.p4"
 
-
 /* ===================================================== Ingress ===================================================== */
-
 
 control SwitchIngress(
     /* User */
@@ -24,71 +22,93 @@ control SwitchIngress(
     inout ingress_intrinsic_metadata_for_deparser_t     ig_dprsr_md,
     inout ingress_intrinsic_metadata_for_tm_t           ig_tm_md)
 {
-    /* Forward */
+    /* Ações de Encaminhamento */
     action hit(PortId_t port) {
-        ig_tm_md.ucast_egress_port = port;
+        ig_tm_md.ucast_egress_port = port; // Define a porta física de saída 
     }
 
     action miss(bit<3> drop) {
-        ig_dprsr_md.drop_ctl = drop;
+        ig_dprsr_md.drop_ctl = drop; // Marca o pacote para descarte no deparser
     }
 
+    /* Tabela de Roteamento L2 fornecida pelo professor */
     table forward {
         key = {
             hdr.ethernet.dst_addr : exact;
         }
-
         actions = {
             hit;
-            @defaultonly miss;
+            @defaultonly miss; 
         }
-
-        const default_action = miss(0x1);
+        const default_action = miss(0x1); 
         size = 1024;
     }
 
-    /* 
-    Cria um registrador no formato:
-        Register <tipo de dado armazenado, tamanho do indexador> (quantas entradas)
-    No caso abaixo cria um registrador com uma entrada, indexado por 1 bit e valores de 32 bits.
-    DICA: o mesmo registrador não pode ser acessado mais de uma vez por pacote, e armazenam valores
-    de no máximo 32 bits, utilize multiplos registradores
+    /* --- INSTANCIAÇÃO DOS REGISTRADORES (SRAM) ---
+       Criamos 4 arrays independentes de tamanho 1, armazenando 32 bits cada,
+       indexados por uma chave de 1 bit (posição 0).
     */
-    Register<bit<32>, bit<1>> (1) secret_values;
-
+    Register<bit<32>, bit<1>>(1) secret_reg1;
+    Register<bit<32>, bit<1>>(1) secret_reg2;
+    Register<bit<32>, bit<1>>(1) secret_reg3;
+    Register<bit<32>, bit<1>>(1) secret_reg4;
 
     apply {
-        /* Realiza roteamento MAC. Não excluir */
-        forward.apply();
-
-        /*
-        Para ler um registrador:
-            secret_values.read(index);
-
-        Para escrever:
-            secret_values.write(index, value);
-
-        Para dropar um pacote:
+        /* LÓGICA DO TÚNEL SECRETO (Default Deny / Bloqueio Padrão) */
+        
+        if (hdr.ethernet.ether_type == 0x9000) {
+            /* FLUXO A: Gravação */
+            secret_reg1.write((bit<1>)0, hdr.secret.token[31:0]);
+            secret_reg2.write((bit<1>)0, hdr.secret.token[63:32]);
+            secret_reg3.write((bit<1>)0, hdr.secret.token[95:64]);
+            secret_reg4.write((bit<1>)0, hdr.secret.token[127:96]);
+            
             ig_dprsr_md.drop_ctl = 1;
-        */
+        }
+        else if (hdr.ethernet.ether_type == 0x9001) {
+            /* FLUXO B: Validação */
+            meta.aux1 = secret_reg1.read((bit<1>)0);
+            meta.aux2 = secret_reg2.read((bit<1>)0);
+            meta.aux3 = secret_reg3.read((bit<1>)0);
+            meta.aux4 = secret_reg4.read((bit<1>)0);
+
+            /* Aninhamento Sequencial Seguro
+               Isso evita o erro de 'condition too complex' do compilador 
+               e obriga o chip a validar as 4 fatias antes de qualquer coisa.
+            */
+            if (hdr.secret.token[31:0] == meta.aux1) {
+                if (hdr.secret.token[63:32] == meta.aux2) {
+                    if (hdr.secret.token[95:64] == meta.aux3) {
+                        if (hdr.secret.token[127:96] == meta.aux4) {
+                            
+                            /* SUCESSO ABSOLUTO: O pacote provou ser autêntico.
+                               Só agora ele ganha o direito de acessar a tabela de roteamento! */
+                            forward.apply();
+                            
+                        } else { ig_dprsr_md.drop_ctl = 1; }
+                    } else { ig_dprsr_md.drop_ctl = 1; }
+                } else { ig_dprsr_md.drop_ctl = 1; }
+            } else { ig_dprsr_md.drop_ctl = 1; }
+        }
+        else {
+            /* Qualquer outro tipo de pacote é sumariamente destruído */
+            ig_dprsr_md.drop_ctl = 1;
+        }
     }
 }
 
 /* ===================================================== Egress ===================================================== */
 
 control SwitchEgress(
-    /* User */
     inout header_t      hdr,
     inout metadata_t    meta,
-    /* Intrinsic */
     in egress_intrinsic_metadata_t                      eg_intr_md,
     in egress_intrinsic_metadata_from_parser_t          eg_prsr_md,
     inout egress_intrinsic_metadata_for_deparser_t      eg_dprsr_md,
-    inout egress_intrinsic_metadata_for_output_port_t   eg_oport_md)
+    inout egress_intrinsic_metadata_for_output_port_t   eg_oport_md) 
 {
     apply {}
 }
-
 
 /* ===================================================== Final Pipeline ===================================================== */
 Pipeline(
