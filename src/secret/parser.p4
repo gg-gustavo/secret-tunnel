@@ -68,7 +68,7 @@ parser SwitchIngressParser(packet_in pkt,
         }
     }
 
-    /* Estado criado para extrair os 16 bytes do token */
+    /* Estado criado pra extrair os 16 bytes do token */
     state parse_secret {
         pkt.extract(hdr.secret);
         transition accept;
@@ -113,7 +113,7 @@ parser SwitchEgressParser(packet_in pkt,
         meta = {0, 0, 0, 0, 0};
         pkt.extract(hdr.ethernet);
         
-        /* Espelhamos a lógica do Ingress para evitar falhas no pipeline de saída */
+        /* Espelha a lógica do Ingress pra evitar falhas no pipeline de saída */
         transition select(hdr.ethernet.ether_type) {
             0x9000: parse_secret;
             0x9001: parse_secret;
@@ -141,5 +141,6 @@ control SwitchEgressDeparser(packet_out pkt,
         pkt.emit(hdr);
     }
 }
+
 
 #endif /* _PARSER_ */

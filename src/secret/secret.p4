@@ -10,7 +10,9 @@
 #include "headers.p4"
 #include "parser.p4"
 
+
 /* ===================================================== Ingress ===================================================== */
+
 
 control SwitchIngress(
     /* User */
@@ -22,30 +24,32 @@ control SwitchIngress(
     inout ingress_intrinsic_metadata_for_deparser_t     ig_dprsr_md,
     inout ingress_intrinsic_metadata_for_tm_t           ig_tm_md)
 {
-    /* Ações de Encaminhamento */
+    /* Forward */
     action hit(PortId_t port) {
         ig_tm_md.ucast_egress_port = port; // Define a porta física de saída 
     }
 
     action miss(bit<3> drop) {
-        ig_dprsr_md.drop_ctl = drop; // Marca o pacote para descarte no deparser
+        ig_dprsr_md.drop_ctl = drop; // Marca o pacote pra descarte no deparser
     }
 
-    /* Tabela de Roteamento L2 fornecida pelo professor */
+    /* Tabela de roteamento L2 fornecida pelo professor */
     table forward {
         key = {
             hdr.ethernet.dst_addr : exact;
         }
+
         actions = {
             hit;
-            @defaultonly miss; 
+            @defaultonly miss;
         }
-        const default_action = miss(0x1); 
+
+        const default_action = miss(0x1);
         size = 1024;
     }
 
     /* --- INSTANCIAÇÃO DOS REGISTRADORES (SRAM) ---
-       Criamos 4 arrays independentes de tamanho 1, armazenando 32 bits cada,
+       Cria 4 arrays independentes de tamanho 1, armazenando 32 bits cada,
        indexados por uma chave de 1 bit (posição 0).
     */
     Register<bit<32>, bit<1>>(1) secret_reg1;
@@ -54,7 +58,7 @@ control SwitchIngress(
     Register<bit<32>, bit<1>>(1) secret_reg4;
 
     apply {
-        /* LÓGICA DO TÚNEL SECRETO (Default Deny / Bloqueio Padrão) */
+        /* LÓGICA DO TÚNEL SECRETO (Default Deny / Bloqueio por Padrão) */
         
         if (hdr.ethernet.ether_type == 0x9000) {
             /* FLUXO A: Gravação */
@@ -81,8 +85,8 @@ control SwitchIngress(
                     if (hdr.secret.token[95:64] == meta.aux3) {
                         if (hdr.secret.token[127:96] == meta.aux4) {
                             
-                            /* SUCESSO ABSOLUTO: O pacote provou ser autêntico.
-                               Só agora ele ganha o direito de acessar a tabela de roteamento! */
+                            /* SUCESSO: O pacote provou ser autêntico,
+                               agora ele ganha o acesso a tabela de roteamento */
                             forward.apply();
                             
                         } else { ig_dprsr_md.drop_ctl = 1; }
@@ -91,7 +95,7 @@ control SwitchIngress(
             } else { ig_dprsr_md.drop_ctl = 1; }
         }
         else {
-            /* Qualquer outro tipo de pacote é sumariamente destruído */
+            /* Qualquer outro pacote é descartado */
             ig_dprsr_md.drop_ctl = 1;
         }
     }
@@ -100,15 +104,18 @@ control SwitchIngress(
 /* ===================================================== Egress ===================================================== */
 
 control SwitchEgress(
+    /* User */
     inout header_t      hdr,
     inout metadata_t    meta,
+    /* Intrinsic */
     in egress_intrinsic_metadata_t                      eg_intr_md,
     in egress_intrinsic_metadata_from_parser_t          eg_prsr_md,
     inout egress_intrinsic_metadata_for_deparser_t      eg_dprsr_md,
-    inout egress_intrinsic_metadata_for_output_port_t   eg_oport_md) 
+    inout egress_intrinsic_metadata_for_output_port_t   eg_oport_md)
 {
     apply {}
 }
+
 
 /* ===================================================== Final Pipeline ===================================================== */
 Pipeline(

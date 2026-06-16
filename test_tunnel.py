@@ -2,12 +2,12 @@ from scapy.all import Ether, sendp, bind_layers, Packet
 from scapy.fields import BitField
 import time
 
-# Definindo o molde do Túnel Secreto no Python
+# Define o molde do túnel secreto no Python
 class SecretHeader(Packet):
     name = "SecretHeader"
     fields_desc = [ BitField("token", 0, 128) ] # 16 bytes
 
-# Ensinando o Scapy a conectar o Ethernet com o nosso cabeçalho
+# Ensina o Scapy a conectar o Ethernet com o nosso cabeçalho
 bind_layers(Ether, SecretHeader, type=0x9000)
 bind_layers(Ether, SecretHeader, type=0x9001)
 
